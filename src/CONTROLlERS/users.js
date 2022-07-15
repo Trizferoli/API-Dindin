@@ -102,7 +102,6 @@ const attUser = async (req, res) => {
 
     try {
         const existingUser = await conexao.query(queryCheckForDuplcatesEmail, [email]);
-        if (existingUser.rowCount === 0) { return res.status(400).json({ "mensagem": "Este email não está cadastrado." }) }
     } catch (error) {
         return res.status(400).json({ "mensagem": error.message })
     }
