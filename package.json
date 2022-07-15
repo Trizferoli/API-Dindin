@@ -4,7 +4,8 @@
   "description": "API for online banking systems",
   "main": "index.js",
   "scripts": {
-    "dev": "nodemon index.js"
+    "dev": "nodemon index.js",
+    "web": "npm start"
   },
   "repository": {
     "type": "git",
