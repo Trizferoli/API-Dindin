@@ -1,6 +1,4 @@
 const conexao = require('../conexao');
-const jwt = require("jsonwebtoken");
-const jwtSecret = require('../secret');
 const { query } = require('express');
 
 const categories = async (req, res) => {

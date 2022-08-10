@@ -1,7 +1,4 @@
-//checks if all fields in the array argument are filled.
-//recieves  an array of objects.
-//if any field is blank, returns an object with error message and isValid = false.
-//if all fields are filled returns an object with isValid = true.
+//DEPRECATED
 
 const hasRequiredFields = (array) => {
     let isValid = true;

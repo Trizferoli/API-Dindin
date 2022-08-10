@@ -2,36 +2,27 @@ const conexao = require('../conexao');
 const securePassword = require('secure-password');
 const pwd = securePassword();
 const jwt = require("jsonwebtoken");
-const jwtSecret = require('../secret');
-const hasRequiredFields = require('./functions');
+const schemaRegisterUser = require('../validacoes/registerUser');
+const schemaLoginUser = require('../validacoes/loginUser');
+
+require('dotenv').config();
+const jwtSecret = process.env.JWT_SECRET_KEY;
 
 const queryCheckForDuplcatesEmail = 'SELECT * FROM usuarios WHERE email = $1';
 
 const registerUser = async (req, res) => {
     const { nome, email, senha } = req.body;
-    const fieldsVerifier = hasRequiredFields([{ senha }, { nome }, { email }]);
     let hash = '';
 
-    if (!fieldsVerifier.isValid) {
-        return res.status(400).json({ 'mensagem': fieldsVerifier.message })
-    }
-
-    if (!email.includes('@')) { return res.status(400).json({ "mensagem": "O email cadastrado não é válido." }) };
 
     try {
+        await schemaRegisterUser.validate(req.body);
+
         hash = (await pwd.hash(Buffer.from(senha))).toString('hex');
-    } catch (error) {
-        return res.status(400).json({ "mensagem": error.message });
-    }
 
-    try {
         const existingUser = await conexao.query(queryCheckForDuplcatesEmail, [email]);
         if (existingUser.rowCount !== 0) { return res.status(400).json({ "mensagem": "Este email já está cadastrado." }) };
-    } catch (error) {
-        return res.status(400).json({ "mensagem": error.message });
-    }
 
-    try {
         const query = 'INSERT INTO usuarios(nome, email, senha) VALUES ($1,$2,$3) RETURNING *';
         const usuario = await conexao.query(query, [nome, email, hash]);
         if (usuario.rowCount === 0) { return res.status(400).json({ "mensagem": "Não foi possível cadastrar usuário." }) };
@@ -45,11 +36,10 @@ const registerUser = async (req, res) => {
 
 const logInUser = async (req, res) => {
     const { email, senha } = req.body;
-    const fieldsVerifier = hasRequiredFields([{ email }, { senha }]);
-
-    if (!fieldsVerifier.isValid) { return res.status(400).json({ "mensagem": fieldsVerifier.message }) };
 
     try {
+        await schemaLoginUser.validate(req.body);
+
         const usuario = await conexao.query('SELECT * FROM usuarios WHERE email ILIKE $1', [email]);
         if (usuario.rowCount === 0) { return res.status(404).json({ "mensagem": "Dados fornecidos incorretos." }) };
         const { id, nome } = usuario.rows[0];
@@ -74,6 +64,7 @@ const logInUser = async (req, res) => {
 
         const token = jwt.sign({ id }, jwtSecret, { expiresIn: '2h' });
         return res.status(200).json({ 'usuario': { id, nome, email }, token });
+
     } catch (error) {
         return res.status(400).json({ "mensagem": error.message });
     }
@@ -94,32 +85,23 @@ const attUser = async (req, res) => {
     const { usuario } = req;
     const { nome, email, senha } = req.body;
     let hash = '';
-    const fieldsVerifier = hasRequiredFields([{ nome }, { email }, { senha }]);
-
-    if (!fieldsVerifier.isValid) { return res.status(400).json({ "mensagem": fieldsVerifier.message }) };
-
-    if (!email.includes('@')) { return res.status(400).json({ "mensagem": "O email cadastrado não é válido." }) };
 
     try {
+        await schemaRegisterUser.validate(req.body);
+
         const existingUser = await conexao.query(queryCheckForDuplcatesEmail, [email]);
-    } catch (error) {
-        return res.status(400).json({ "mensagem": error.message })
-    }
+        if (existingUser.rowCount === 0) { return res.status(400).json({ "mensagem": "Este email não está cadastrado." }) }
 
-    try {
         hash = (await pwd.hash(Buffer.from(senha))).toString('hex');
-    } catch (error) {
-        return res.status(400).json({ "mensagem": error.message });
-    }
 
-    try {
         const query = 'UPDATE usuarios SET nome = $1, email = $2, senha = $3 WHERE id = $4';
         const { rowCount } = await conexao.query(query, [nome, email, hash, usuario.id]);
 
         if (rowCount === 0) { return res.status(404).json({ "mensagem": "Não foi possível atualizar o usuário." }) }
     } catch (error) {
-        return res.status(400).json({ "mensagem": error.message });
-    };
+        return res.status(400).json({ "mensagem": error.message })
+    }
+
     return res.status(204).json();
 };
 

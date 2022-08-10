@@ -1,5 +1,6 @@
 const conexao = require('../conexao');
-const hasRequiredFields = require('./functions');
+const schemaMakeTransaction = require('../validacoes/makeTransaction');
+
 
 
 const getUserTransactions = async (req, res) => {
@@ -55,17 +56,10 @@ const makeTransaction = async (req, res) => {
     const { descricao, valor, data, categoria_id, tipo } = req.body;
     const { usuario } = req;
 
-    const allFilled = hasRequiredFields([{ valor }, { categoria_id }, { tipo }, { data }, { descricao }]);
-
-    if (!allFilled.isValid) {
-        return res.status(400).json({ "mensagem": allFilled.message });
-    };
-
-    if (tipo !== 'entrada' && tipo !== "saida") {
-        return res.status(400).json({ "mensagem": "Insira um tipo válido (entrada ou saida)." });
-    };
 
     try {
+
+        await schemaMakeTransaction.validate(req.body)
         const query = `INSERT INTO transacoes (tipo, valor, data_cadastro, descricao, categoria_id, usuario) VALUES($1, $2, $3, $4, $5, $6)`;
         const transaction = await conexao.query(query, [tipo, valor, data, descricao, categoria_id, usuario.id]);
 
@@ -80,15 +74,11 @@ const makeTransaction = async (req, res) => {
 const attTransaction = async (req, res) => {
     const { id } = req.params;
     const { descricao, valor, data, categoria_id, tipo } = req.body;
-    const filledFields = hasRequiredFields([{ descricao }, { valor }, { data }, { categoria_id }, { tipo }]);
 
-    if (!filledFields.isValid) { return res.status(400).json({ "mensagem": filledFields.message }) };
-
-    if (tipo !== 'entrada' && tipo !== "saida") {
-        return res.status(400).json({ "mensagem": "Insira um tipo válido (entrada ou saida)." });
-    };
 
     try {
+        await schemaMakeTransaction.validate(req.body);
+
         const query = 'UPDATE transacoes SET descricao = $1, valor = $2, data_cadastro = $3, categoria_id = $4, tipo = $5 WHERE id = $6';
         const transaction = await conexao.query(query, [descricao, valor, data, categoria_id, tipo, id]);
 
@@ -120,25 +110,24 @@ const getBankStatement = async (req, res) => {
     let saldoEntrada = 0;
     let saldoSaida = 0;
     try {
-        const query = 'SELECT sum(valor) FROM transacoes WHERE usuario = $1 AND tipo = $2';
-        const entrada = await conexao.query(query, [usuario.id, 'entrada']);
+        const querySaldo = 'SELECT sum(valor) FROM transacoes WHERE usuario = $1 AND tipo = $2';
+        const entrada = await conexao.query(querySaldo, [usuario.id, 'entrada']);
         saldoEntrada = entrada.rows[0].sum;
 
         if (saldoEntrada === null) { saldoEntrada = 0; }
         if (entrada.rowCount === 0) { return res.status(404).json({ "mensagem": "Não foi possível obter valores de entrada." }) }
-    } catch (error) {
-        return res.status(400).json({ "mensagem": error.message });
-    }
-    try {
-        const query = 'SELECT sum(valor) FROM transacoes WHERE usuario = $1 AND tipo = $2';
-        saida = await conexao.query(query, [usuario.id, 'saida']);
+
+        const querySaida = 'SELECT sum(valor) FROM transacoes WHERE usuario = $1 AND tipo = $2';
+        saida = await conexao.query(querySaida, [usuario.id, 'saida']);
         saldoSaida = saida.rows[0].sum;
 
         if (saldoSaida === null) { saldoSaida = 0; }
         if (saldoSaida.rowCount === 0) { return res.status(404).json({ "mensagem": "Não foi possível obter valores de saida." }) }
+
     } catch (error) {
         return res.status(400).json({ "mensagem": error.message });
     }
+
     return res.status(200).json({ "entrada": Number(saldoEntrada), "saida": Number(saldoSaida) })
 };
 
